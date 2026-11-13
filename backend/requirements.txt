@@ -1,0 +1,5 @@
+fastapi==0.162.5
+uvicorn==0.54.0
+razorpay==2.0.1
+pydantic-settings==2.16.2
+setuptools==84.2.1

@@ -41,3 +41,13 @@ def create_order(amount_rupees: float) -> dict:
             "receipt": f"rcpt_{uuid.uuid4().hex[:12]}",  # our own reference, max 40 chars
         }
     )
+
+
+def verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
+    """HMAC-SHA256(webhook_secret, RAW body). Never parse the body before this."""
+    if not settings.razorpay_webhook_secret:
+        raise RuntimeError("RAZORPAY_WEBHOOK_SECRET is missing in backend/.env")
+    expected = hmac.new(
+        settings.razorpay_webhook_secret.encode(), raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)

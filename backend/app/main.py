@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.db import init_db
 from app.payments.router import router as payments_router
 
+init_db()
 app = FastAPI(title="Razorpay Learning API")
 app.include_router(payments_router)
 

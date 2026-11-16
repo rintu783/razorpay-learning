@@ -43,4 +43,14 @@ class PaymentService {
     }
     return (jsonDecode(res.body) as Map<String, dynamic>)['verified'] == true;
   }
+
+  /// Status as saved by the backend (updated only by the Razorpay webhook).
+  /// Returns "created", "paid" or "failed".
+  Future<String> getStatus(String orderId) async {
+    final res = await http.get(Uri.parse('$baseUrl/payments/status/$orderId'));
+    if (res.statusCode != 200) {
+      throw Exception('Status failed (${res.statusCode}): ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['status'] as String;
+  }
 }

@@ -53,16 +53,42 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  // Steps 7-9: send the 3 values to the backend; ONLY the backend says paid.
+  // After checkout: pre-check the signature, then wait for the WEBHOOK to
+  // mark the order paid. The app never decides "paid" itself.
   Future<void> _onSuccess(PaymentSuccess p) async {
-    setState(() => _status = 'Verifying with server...');
+    setState(() => _status = 'Checking signature...');
     try {
       final ok = await _service.verify(p.orderId, p.paymentId, p.signature);
+      if (!ok) {
+        setState(() {
+          _busy = false;
+          _status = 'Signature invalid - do not trust this payment';
+        });
+        return;
+      }
+      // Poll our backend until the webhook has updated the status (max ~40s).
+      for (var i = 0; i < 20; i++) {
+        setState(() => _status = 'Waiting for payment confirmation... (${i + 1})');
+        final status = await _service.getStatus(p.orderId);
+        if (status == 'paid') {
+          setState(() {
+            _busy = false;
+            _status = 'PAID (confirmed by webhook)\npayment: ${p.paymentId}';
+          });
+          return;
+        }
+        if (status == 'failed') {
+          setState(() {
+            _busy = false;
+            _status = 'Payment FAILED (confirmed by webhook)';
+          });
+          return;
+        }
+        await Future.delayed(const Duration(seconds: 2));
+      }
       setState(() {
         _busy = false;
-        _status = ok
-            ? 'PAID and verified\npayment: ${p.paymentId}'
-            : 'Verification FAILED - do not trust this payment';
+        _status = 'Still pending. Check again later (order ${p.orderId})';
       });
     } catch (e) {
       setState(() {

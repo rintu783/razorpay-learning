@@ -14,8 +14,14 @@ class VerifyPaymentRequest(BaseModel):
 
 
 class VerifyPaymentResponse(BaseModel):
+    # Signature check only. Payment status comes from the webhook, not from here.
     verified: bool
-    status: str  # "paid" or "failed"
+
+
+class PaymentStatusResponse(BaseModel):
+    order_id: str
+    status: str  # created | paid | failed
+    payment_id: str | None = None
 
 
 class CreateOrderResponse(BaseModel):

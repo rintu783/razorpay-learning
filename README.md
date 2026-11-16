@@ -30,3 +30,12 @@ Latest versions checked (Nov 2026): `razorpay` Python SDK 2.0.1, `razorpay_flutt
 2. Open a lesson `.md` file.
 3. Press `Ctrl+Shift+V` (preview) or `Ctrl+K V` (side by side).
 (GitHub also renders Mermaid automatically.)
+
+## Quick demo (web, test mode)
+1. `cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+2. Copy `backend/.env.example` to `backend/.env` and add TEST keys (never commit it).
+3. `uvicorn app.main:app --port 8000`
+4. In another terminal: `cd mobile && flutter run -d chrome`
+
+Built for the demo: create-order, checkout (checkout.js), signature verify.
+Not built yet: DB records, webhooks, refunds. Note: `razorpay_flutter` does not support web, so the web app uses checkout.js.

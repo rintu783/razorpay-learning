@@ -91,6 +91,50 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
+  Future<void> _refund(SubscriptionInfo info) async {
+    final orderId = info.refundableOrderId;
+    if (orderId == null) return;
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refund Pro plan?'),
+        content: const Text(
+            'Your full payment will be refunded and you will go back to the Basic plan.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep Pro')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Refund')),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    setState(() {
+      _busy = true;
+      _message = 'Requesting refund...';
+    });
+    try {
+      await _subs.refund(orderId);
+      // The app never downgrades itself. Wait for the refund webhook.
+      for (var i = 0; i < 30; i++) {
+        setState(() => _message = 'Refund in progress... waiting for confirmation (${i + 1})');
+        final latest = await _subs.me();
+        if (latest.planId == 'basic') {
+          setState(() => _info = latest);
+          _done('Refund processed. You are back on Basic.');
+          return;
+        }
+        if (latest.refundStatus == 'failed') {
+          setState(() => _info = latest);
+          _done('Refund failed. You are still on Pro. Please try again.');
+          return;
+        }
+        await Future.delayed(const Duration(seconds: 2));
+      }
+      _done('Refund is still processing. Press refresh in a moment.');
+    } catch (e) {
+      _done('Error: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final info = _info;
@@ -130,6 +174,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     current: p.id == info.planId,
                                     busy: _busy,
                                     onUpgrade: () => _upgrade(p),
+                                    onRefund: p.id == info.planId &&
+                                            info.refundableOrderId != null &&
+                                            info.refundStatus != 'pending'
+                                        ? () => _refund(info)
+                                        : null,
                                   ),
                               ],
                             ),
@@ -161,9 +210,11 @@ class _CurrentBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final pro = info.planId == 'pro';
     final until = info.proUntil;
-    final text = pro && until != null
-        ? 'You are on Pro until ${until.day}/${until.month}/${until.year}'
-        : 'You are on the Basic plan';
+    final text = pro && info.refundStatus == 'pending'
+        ? 'Refund in progress. You stay on Pro until it is confirmed.'
+        : pro && until != null
+            ? 'You are on Pro until ${until.day}/${until.month}/${until.year}'
+            : 'You are on the Basic plan';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -189,11 +240,13 @@ class _PlanCard extends StatelessWidget {
   final bool current;
   final bool busy;
   final VoidCallback onUpgrade;
+  final VoidCallback? onRefund; // set only on the current, refundable plan
   const _PlanCard({
     required this.plan,
     required this.current,
     required this.busy,
     required this.onUpgrade,
+    this.onRefund,
   });
 
   @override
@@ -247,6 +300,18 @@ class _PlanCard extends StatelessWidget {
                         child: Text('Upgrade to ${plan.name}'),
                       ),
               ),
+              if (onRefund != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: busy ? null : onRefund,
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('Request refund'),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

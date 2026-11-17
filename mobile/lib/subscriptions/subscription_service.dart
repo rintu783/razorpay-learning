@@ -16,8 +16,11 @@ class Plan {
 class SubscriptionInfo {
   final String planId;
   final DateTime? proUntil;
+  final String? refundableOrderId;
+  final String? refundStatus; // pending | processed | failed | null
   final List<Plan> plans;
-  SubscriptionInfo(this.planId, this.proUntil, this.plans);
+  SubscriptionInfo(this.planId, this.proUntil, this.refundableOrderId,
+      this.refundStatus, this.plans);
 }
 
 /// Talks to the backend /subscriptions endpoints. No keys here.
@@ -38,6 +41,8 @@ class SubscriptionService {
     return SubscriptionInfo(
       j['plan_id'],
       until == null ? null : DateTime.parse(until).toLocal(),
+      j['refundable_order_id'] as String?,
+      j['refund_status'] as String?,
       plans,
     );
   }
@@ -55,5 +60,14 @@ class SubscriptionService {
     }
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     return OrderInfo(j['order_id'], j['amount'], j['key_id']);
+  }
+
+  /// Starts a full refund. The server's webhook later moves the user to Basic.
+  Future<void> refund(String orderId) async {
+    final res = await http.post(Uri.parse('$_base/payments/$orderId/refund'));
+    if (res.statusCode != 200) {
+      final detail = (jsonDecode(res.body) as Map<String, dynamic>)['detail'];
+      throw Exception('$detail');
+    }
   }
 }

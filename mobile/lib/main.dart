@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'payments/payment_screen.dart';
+import 'subscriptions/subscription_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Razorpay Demo',
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-      home: const PaymentScreen(),
+      home: const SubscriptionScreen(),
     );
   }
 }

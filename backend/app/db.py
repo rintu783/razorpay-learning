@@ -22,5 +22,6 @@ def get_db():
 
 def init_db():
     from app.payments import models  # noqa: F401  (registers tables)
+    from app.subscriptions import models as _sub  # noqa: F401
 
     Base.metadata.create_all(engine)

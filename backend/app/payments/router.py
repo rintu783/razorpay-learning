@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.payments import repository, service
+from app.subscriptions import repository as sub_repo
 from app.payments.schemas import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -99,6 +100,8 @@ async def webhook(
         return {"status": "amount_mismatch"}
 
     changed = repository.apply_status(db, payment, new_status, entity.get("id"))
+    if payment.status == "paid":
+        sub_repo.apply_paid(db, payment.order_id)  # upgrade the plan (once per order)
     db.commit()
     log.warning("webhook %s order=%s -> %s (changed=%s)", name, payment.order_id, payment.status, changed)
     return {"status": "ok"}  # reply 200 fast so Razorpay doesn't retry

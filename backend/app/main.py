@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
 from app.payments.router import router as payments_router
+from app.subscriptions.router import router as subscriptions_router
 
 init_db()
 app = FastAPI(title="Razorpay Learning API")
 app.include_router(payments_router)
+app.include_router(subscriptions_router)
 
 # Flutter web runs on a different origin (localhost:<port>), so the browser needs CORS.
 # Demo only: allow all origins. Restrict this in production.

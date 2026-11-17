@@ -12,6 +12,7 @@ from app.payments.schemas import (
     CreateOrderRequest,
     CreateOrderResponse,
     PaymentStatusResponse,
+    RefundResponse,
     VerifyPaymentRequest,
     VerifyPaymentResponse,
 )
@@ -21,6 +22,11 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 # Webhook event name -> our status
 _EVENT_STATUS = {"payment.captured": "paid", "order.paid": "paid", "payment.failed": "failed"}
+_REFUND_EVENT_STATUS = {
+    "refund.created": "pending",
+    "refund.processed": "processed",
+    "refund.failed": "failed",
+}
 
 
 @router.post("/create-order", response_model=CreateOrderResponse)
@@ -60,6 +66,32 @@ def payment_status(order_id: str, db: Session = Depends(get_db)):
     return PaymentStatusResponse(order_id=p.order_id, status=p.status, payment_id=p.payment_id)
 
 
+@router.post("/{order_id}/refund", response_model=RefundResponse)
+def refund_order(order_id: str, db: Session = Depends(get_db)):
+    """Full refund. Only starts it; the refund webhook updates the status."""
+    payment = repository.get_by_order(db, order_id)
+    if payment is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if payment.status != "paid" or not payment.payment_id:
+        raise HTTPException(status_code=409, detail=f"Only paid orders can be refunded (status: {payment.status})")
+    if repository.has_open_refund(db, order_id):
+        raise HTTPException(status_code=409, detail="A refund for this order is already in progress or done")
+    try:
+        r = service.create_refund(payment.payment_id, payment.amount)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        log.exception("refund failed order=%s", order_id)
+        raise HTTPException(status_code=502, detail="Razorpay could not create the refund")
+    refund = repository.upsert_refund(
+        db, r["id"], order_id, payment.payment_id, r.get("amount", payment.amount), "pending"
+    )
+    db.commit()
+    return RefundResponse(
+        refund_id=refund.refund_id, order_id=order_id, amount=refund.amount, status=refund.status
+    )
+
+
 @router.post("/webhook")
 async def webhook(
     request: Request,
@@ -79,6 +111,8 @@ async def webhook(
 
     event = json.loads(raw)
     name = event.get("event", "")
+    if name in _REFUND_EVENT_STATUS:
+        return _handle_refund_event(db, event, name, x_razorpay_event_id)
     new_status = _EVENT_STATUS.get(name)
     if new_status is None:
         return {"status": "ignored"}
@@ -105,3 +139,31 @@ async def webhook(
     db.commit()
     log.warning("webhook %s order=%s -> %s (changed=%s)", name, payment.order_id, payment.status, changed)
     return {"status": "ok"}  # reply 200 fast so Razorpay doesn't retry
+
+
+def _handle_refund_event(db: Session, event: dict, name: str, event_id: str) -> dict:
+    if not repository.record_event(db, event_id, name):
+        return {"status": "duplicate"}
+    payload = event.get("payload", {})
+    refund_e = payload.get("refund", {}).get("entity", {})
+    pay_e = payload.get("payment", {}).get("entity", {})
+    payment = (
+        repository.get_by_order(db, pay_e.get("order_id", ""))
+        or repository.get_by_payment_id(db, refund_e.get("payment_id", ""))
+    )
+    if payment is None or not refund_e.get("id"):
+        db.commit()
+        log.warning("webhook %s for unknown payment %s", name, refund_e.get("payment_id"))
+        return {"status": "unknown_payment"}
+
+    status = _REFUND_EVENT_STATUS[name]
+    refund = repository.upsert_refund(
+        db, refund_e["id"], payment.order_id, refund_e.get("payment_id", ""), refund_e.get("amount", 0), status
+    )
+    # Only a fully processed refund ends the purchase (partial refunds from the dashboard do not).
+    if refund.status == "processed" and refund.amount == payment.amount:
+        repository.apply_status(db, payment, "refunded", None)
+        sub_repo.revoke_for_order(db, payment.order_id)
+    db.commit()
+    log.warning("webhook %s order=%s refund=%s -> %s", name, payment.order_id, refund.refund_id, refund.status)
+    return {"status": "ok"}

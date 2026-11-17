@@ -29,3 +29,10 @@ class CreateOrderResponse(BaseModel):
     amount: int  # paise
     currency: str
     key_id: str  # public Key ID only. Never return the secret.
+
+
+class RefundResponse(BaseModel):
+    refund_id: str
+    order_id: str
+    amount: int  # paise
+    status: str  # pending | processed | failed

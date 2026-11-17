@@ -19,4 +19,6 @@ class SubscriptionResponse(BaseModel):
     user_id: str
     plan_id: str
     pro_until: datetime | None = None
+    refundable_order_id: str | None = None  # the paid order the user may refund
+    refund_status: str | None = None  # latest refund on that order
     plans: list[PlanInfo]

@@ -21,8 +21,21 @@ def _plans() -> list[PlanInfo]:
 def my_subscription(db: Session = Depends(get_db)):
     sub = repository.get_or_create(db, DEMO_USER)
     db.commit()
+    refundable, refund_status = None, None
+    if sub.plan_id == "pro":
+        purchase = repository.latest_applied_purchase(db, DEMO_USER)
+        payment = pay_repo.get_by_order(db, purchase.order_id) if purchase else None
+        if payment and payment.status == "paid":
+            refundable = payment.order_id
+            refund = pay_repo.latest_refund(db, payment.order_id)
+            refund_status = refund.status if refund else None
     return SubscriptionResponse(
-        user_id=sub.user_id, plan_id=sub.plan_id, pro_until=sub.pro_until, plans=_plans()
+        user_id=sub.user_id,
+        plan_id=sub.plan_id,
+        pro_until=sub.pro_until,
+        refundable_order_id=refundable,
+        refund_status=refund_status,
+        plans=_plans(),
     )
 
 

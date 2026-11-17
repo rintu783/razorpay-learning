@@ -51,3 +51,11 @@ def verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
         settings.razorpay_webhook_secret.encode(), raw_body, hashlib.sha256
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+
+def create_refund(payment_id: str, amount_paise: int) -> dict:
+    """Full refund via Razorpay. Status changes later arrive by webhook."""
+    return _client().payment.refund(
+        payment_id,
+        {"amount": amount_paise, "speed": "normal", "receipt": f"rfnd_{uuid.uuid4().hex[:12]}"},
+    )

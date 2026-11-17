@@ -41,3 +41,22 @@ def apply_paid(db: Session, order_id: str) -> bool:
     sub.pro_until = datetime.now(timezone.utc) + timedelta(days=PLANS[purchase.plan_id]["days"])
     purchase.applied = True
     return True
+
+
+def revoke_for_order(db: Session, order_id: str) -> bool:
+    """Called by the webhook when the order's payment is fully refunded."""
+    purchase = get_purchase(db, order_id)
+    if purchase is None or not purchase.applied:
+        return False
+    sub = get_or_create(db, purchase.user_id)
+    if sub.plan_id == purchase.plan_id:
+        sub.plan_id, sub.pro_until = "basic", None
+    return True
+
+
+def latest_applied_purchase(db: Session, user_id: str) -> PlanPurchase | None:
+    return db.scalar(
+        select(PlanPurchase)
+        .where(PlanPurchase.user_id == user_id, PlanPurchase.applied.is_(True))
+        .order_by(PlanPurchase.id.desc())
+    )

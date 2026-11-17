@@ -3,10 +3,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.payments.models import Payment, WebhookEvent
+from app.payments.models import Payment, Refund, WebhookEvent
 
-# Allowed status moves. "paid" is final; "failed" may become "paid" (user retries).
-_ALLOWED = {"created": {"paid", "failed"}, "failed": {"paid"}, "paid": set()}
+# Allowed status moves. "failed" may become "paid" (retry). "paid" can only become "refunded".
+_ALLOWED = {
+    "created": {"paid", "failed"},
+    "failed": {"paid"},
+    "paid": {"refunded"},
+    "refunded": set(),
+}
 
 
 def save_order(db: Session, order_id: str, receipt: str, amount: int, currency: str) -> Payment:
@@ -39,3 +44,34 @@ def apply_status(db: Session, payment: Payment, new_status: str, payment_id: str
     if payment_id:
         payment.payment_id = payment_id
     return True
+
+
+def get_by_payment_id(db: Session, payment_id: str) -> Payment | None:
+    return db.scalar(select(Payment).where(Payment.payment_id == payment_id))
+
+
+def latest_refund(db: Session, order_id: str) -> Refund | None:
+    return db.scalar(select(Refund).where(Refund.order_id == order_id).order_by(Refund.id.desc()))
+
+
+def has_open_refund(db: Session, order_id: str) -> bool:
+    """True if a refund is pending or already processed (blocks a second refund)."""
+    return db.scalar(
+        select(Refund.id).where(Refund.order_id == order_id, Refund.status.in_(["pending", "processed"]))
+    ) is not None
+
+
+def upsert_refund(
+    db: Session, refund_id: str, order_id: str, payment_id: str, amount: int, status: str
+) -> Refund:
+    """Used by both the refund endpoint and the webhook (either may arrive first)."""
+    r = db.scalar(select(Refund).where(Refund.refund_id == refund_id))
+    if r is None:
+        r = Refund(refund_id=refund_id, order_id=order_id, payment_id=payment_id, amount=amount, status=status)
+        db.add(r)
+    elif r.status != "processed":  # processed is final; ignore out-of-order events
+        r.status = status
+        if amount:
+            r.amount = amount  # the webhook amount is authoritative
+    db.flush()
+    return r

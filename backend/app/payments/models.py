@@ -33,3 +33,18 @@ class WebhookEvent(Base):
     event_id: Mapped[str] = mapped_column(String(80), unique=True)
     event_type: Mapped[str] = mapped_column(String(40))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Refund(Base):
+    """One row per Razorpay refund. Status moves via webhook: pending -> processed | failed."""
+
+    __tablename__ = "refunds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    refund_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    order_id: Mapped[str] = mapped_column(String(40), index=True)
+    payment_id: Mapped[str] = mapped_column(String(40))
+    amount: Mapped[int] = mapped_column(Integer)  # paise
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

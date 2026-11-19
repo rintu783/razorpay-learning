@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'subscriptions/subscription_screen.dart';
+import 'home/home_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -10,9 +10,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Razorpay Demo',
+      title: 'Whiskr',
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-      home: const SubscriptionScreen(),
+      home: const HomeScreen(),
     );
   }
 }

@@ -7,3 +7,5 @@ __pycache__/
 build/
 .dart_tool/
 *.db.bak
+*.db.pre-*
+LEARNING_PROMPT.md

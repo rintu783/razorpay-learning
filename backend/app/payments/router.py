@@ -1,11 +1,13 @@
 import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
+from app.billing import repository as billing_repo
 from app.payments import repository, service
 from app.subscriptions import repository as sub_repo
 from app.payments.schemas import (
@@ -136,9 +138,16 @@ async def webhook(
     changed = repository.apply_status(db, payment, new_status, entity.get("id"))
     if payment.status == "paid":
         sub_repo.apply_paid(db, payment.order_id)  # upgrade the plan (once per order)
+        billing_repo.create_invoice(db, payment, _paid_at(entity))  # once per order
     db.commit()
     log.warning("webhook %s order=%s -> %s (changed=%s)", name, payment.order_id, payment.status, changed)
     return {"status": "ok"}  # reply 200 fast so Razorpay doesn't retry
+
+
+def _paid_at(entity: dict):
+    """Payment time from Razorpay's payload (unix seconds), or None to use now."""
+    ts = entity.get("created_at")
+    return datetime.fromtimestamp(ts, tz=timezone.utc) if isinstance(ts, (int, float)) else None
 
 
 def _handle_refund_event(db: Session, event: dict, name: str, event_id: str) -> dict:

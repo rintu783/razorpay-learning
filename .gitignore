@@ -9,3 +9,4 @@ build/
 *.db.bak
 *.db.pre-*
 LEARNING_PROMPT.md
+notes/

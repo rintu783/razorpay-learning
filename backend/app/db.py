@@ -3,8 +3,8 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
 
-# check_same_thread=False: FastAPI runs sync endpoints in a thread pool.
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+# pool_pre_ping drops dead connections (e.g. after a DB restart) instead of failing a request.
+engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 
 
@@ -19,11 +19,3 @@ def get_db():
     finally:
         db.close()
 
-
-def init_db():
-    from app.payments import models  # noqa: F401  (registers tables)
-    from app.subscriptions import models as _sub  # noqa: F401
-    from app.users import models as _users  # noqa: F401
-    from app.billing import models as _billing  # noqa: F401
-
-    Base.metadata.create_all(engine)

@@ -14,8 +14,8 @@ _ALLOWED = {
 }
 
 
-def save_order(db: Session, order_id: str, receipt: str, amount: int, currency: str) -> Payment:
-    p = Payment(order_id=order_id, receipt=receipt, amount=amount, currency=currency)
+def save_order(db: Session, user_id: str, order_id: str, receipt: str, amount: int, currency: str) -> Payment:
+    p = Payment(user_id=user_id, order_id=order_id, receipt=receipt, amount=amount, currency=currency)
     db.add(p)
     db.commit()
     return p
@@ -23,6 +23,11 @@ def save_order(db: Session, order_id: str, receipt: str, amount: int, currency: 
 
 def get_by_order(db: Session, order_id: str) -> Payment | None:
     return db.scalar(select(Payment).where(Payment.order_id == order_id))
+
+
+def get_owned(db: Session, order_id: str, user_id: str) -> Payment | None:
+    """The order, only if it belongs to this user. Callers answer 404 for both 'missing' and 'not yours'."""
+    return db.scalar(select(Payment).where(Payment.order_id == order_id, Payment.user_id == user_id))
 
 
 def record_event(db: Session, event_id: str, event_type: str) -> bool:

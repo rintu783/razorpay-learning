@@ -9,13 +9,12 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from app.billing import repository as billing_repo
-from app.db import SessionLocal, init_db
+from app.db import SessionLocal
 from app.payments import service
 from app.payments.models import Payment
 
 
 def main() -> None:
-    init_db()
     client = service._client()
     with SessionLocal() as db:
         payments = db.scalars(

@@ -19,7 +19,9 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    invoice_no: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    # 40, not 20: a placeholder "TMP-<order_id>" (24 chars for a real Razorpay id) is stored before the
+    # final number is known. Postgres enforces lengths (SQLite did not).
+    invoice_no: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     order_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     payment_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     user_id: Mapped[str] = mapped_column(String(40), index=True)

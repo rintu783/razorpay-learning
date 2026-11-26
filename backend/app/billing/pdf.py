@@ -56,10 +56,12 @@ def build_invoice_pdf(inv: Invoice, user: User | None, plan_name: str, refunded:
     c.setFont("Helvetica-Bold", 11)
     c.drawString(left, y, "Bill to")
     c.setFont("Helvetica", 10)
-    name = f"{user.first_name} {user.last_name}" if user else inv.user_id
-    c.drawString(left, y - 16, name)
-    if user:
+    name = " ".join(part for part in (user.first_name, user.last_name) if part)
+    if name:  # name is optional (set from the profile screen); the email is always there
+        c.drawString(left, y - 16, name)
         c.drawString(left, y - 30, user.email)
+    else:
+        c.drawString(left, y - 16, user.email)
 
     # Table
     ty = y - 80

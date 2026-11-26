@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -15,6 +15,8 @@ class Payment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    # Owner of the order. Every user-facing payment endpoint checks it; the webhook does not need it.
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey("users.user_id"), index=True)
     receipt: Mapped[str] = mapped_column(String(40))
     amount: Mapped[int] = mapped_column(Integer)  # paise
     currency: Mapped[str] = mapped_column(String(3), default="INR")

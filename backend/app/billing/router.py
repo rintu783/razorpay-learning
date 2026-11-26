@@ -3,13 +3,14 @@ from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import get_current_user
 from app.billing import repository
 from app.billing.pdf import build_invoice_pdf
 from app.billing.schemas import HistoryItem, HistoryResponse
 from app.db import get_db
 from app.payments import repository as pay_repo
-from app.subscriptions.plans import DEMO_USER, PLANS
-from app.users import repository as user_repo
+from app.subscriptions.plans import PLANS
+from app.users.models import User
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -20,7 +21,7 @@ def _utc(dt):
 
 
 @router.get("/history", response_model=HistoryResponse)
-def history(db: Session = Depends(get_db)):
+def history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     items = [
         HistoryItem(
             invoice_no=inv.invoice_no,
@@ -31,19 +32,21 @@ def history(db: Session = Depends(get_db)):
             valid_until=_utc(inv.valid_until),
             status="refunded" if status == "refunded" else "paid",
         )
-        for inv, status in repository.list_for_user(db, DEMO_USER)
+        for inv, status in repository.list_for_user(db, user.user_id)
     ]
     return HistoryResponse(items=items)
 
 
 @router.get("/invoices/{order_id}/pdf")
-def invoice_pdf(order_id: str, db: Session = Depends(get_db)):
+def invoice_pdf(
+    order_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     inv = repository.get_by_order(db, order_id)
-    if inv is None or inv.user_id != DEMO_USER:
+    if inv is None or inv.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Invoice not found")
     payment = pay_repo.get_by_order(db, order_id)
-    user = user_repo.get_or_create(db, inv.user_id)
-    db.commit()
     pdf = build_invoice_pdf(
         inv, user, PLANS[inv.plan_id]["name"], refunded=bool(payment and payment.status == "refunded")
     )

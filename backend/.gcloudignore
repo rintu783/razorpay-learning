@@ -1,0 +1,14 @@
+# Keep secrets and local files out of the Cloud Run source upload.
+.env
+.venv/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+*.db
+*.db.*
+*.bak
+docker-compose.yml
+scripts/

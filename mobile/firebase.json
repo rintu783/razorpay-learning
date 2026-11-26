@@ -1,0 +1,52 @@
+{
+  "hosting": {
+    "target": "app",
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/auth/**",
+        "run": {
+          "serviceId": "rintu-razorpay",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/payments/**",
+        "run": {
+          "serviceId": "rintu-razorpay",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/subscriptions/**",
+        "run": {
+          "serviceId": "rintu-razorpay",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/users/**",
+        "run": {
+          "serviceId": "rintu-razorpay",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/billing/**",
+        "run": {
+          "serviceId": "rintu-razorpay",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

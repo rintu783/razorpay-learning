@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "wayq-learning"
+  },
+  "targets": {
+    "wayq-learning": {
+      "hosting": {
+        "app": [
+          "rintu-razorpay"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

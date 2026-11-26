@@ -10,3 +10,6 @@ build/
 *.db.pre-*
 LEARNING_PROMPT.md
 notes/
+
+# Firebase local deploy cache
+.firebase/

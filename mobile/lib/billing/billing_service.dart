@@ -1,8 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
-
-import '../payments/payment_service.dart';
+import '../auth/api_client.dart';
 
 class HistoryItem {
   final String invoiceNo;
@@ -20,10 +19,10 @@ class HistoryItem {
 
 /// Talks to the backend /billing endpoints.
 class BillingService {
-  static const _base = PaymentService.baseUrl;
+  ApiClient get _api => ApiClient.instance;
 
   Future<List<HistoryItem>> history() async {
-    final res = await http.get(Uri.parse('$_base/billing/history'));
+    final res = await _api.get('/billing/history');
     if (res.statusCode != 200) {
       throw Exception('Could not load billing history (${res.statusCode})');
     }
@@ -41,6 +40,13 @@ class BillingService {
         .toList();
   }
 
-  /// The PDF is opened in a new tab, so the browser needs the full URL.
-  String invoicePdfUrl(String orderId) => '$_base/billing/invoices/$orderId/pdf';
+  /// The PDF endpoint needs the Bearer token, which a plain link in a new tab cannot send. So the app
+  /// downloads the bytes here and shows them from memory (see open_url.dart).
+  Future<Uint8List> invoicePdf(String orderId) async {
+    final res = await _api.get('/billing/invoices/$orderId/pdf');
+    if (res.statusCode != 200) {
+      throw ApiException(ApiClient.errorMessage(res, fallback: 'Could not load the invoice.'), res.statusCode);
+    }
+    return res.bodyBytes;
+  }
 }

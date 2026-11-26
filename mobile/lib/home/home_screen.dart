@@ -42,12 +42,17 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(right: 16),
             child: user != null
                 ? Tooltip(
-                    message: user.fullName,
+                    message: user.displayName,
                     child: InkResponse(
                       radius: 24,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AccountScreen(user: user)),
+                        MaterialPageRoute(
+                          builder: (_) => AccountScreen(
+                            user: user,
+                            onChanged: (u) => setState(() => _user = u),
+                          ),
+                        ),
                       ),
                       child: Avatar(initials: user.initials),
                     ),

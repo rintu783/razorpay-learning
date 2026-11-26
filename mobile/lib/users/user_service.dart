@@ -1,35 +1,53 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
-import '../payments/payment_service.dart';
+import '../auth/api_client.dart';
 
 class UserProfile {
-  final String firstName;
-  final String lastName;
   final String email;
-  final String phone;
-  UserProfile(this.firstName, this.lastName, this.email, this.phone);
+  final String? firstName;
+  final String? lastName;
+  final String? phone;
+  UserProfile(this.email, this.firstName, this.lastName, this.phone);
 
-  String get fullName => '$firstName $lastName'.trim();
+  factory UserProfile.fromJson(Map<String, dynamic> j) =>
+      UserProfile(j['email'], j['first_name'], j['last_name'], j['phone']);
 
-  /// First letter of the first name plus first letter of the last name.
+  /// Empty until the user fills in their name on the profile screen.
+  String get fullName => [firstName, lastName].where((p) => p != null && p.isNotEmpty).join(' ');
+
+  /// What to show as the user's name: their name, or their email if they have not set one.
+  String get displayName => fullName.isEmpty ? email : fullName;
+
+  /// First letter of the first and last name, or the first letter of the email.
   String get initials {
-    String first(String s) => s.isEmpty ? '' : s[0].toUpperCase();
-    return first(firstName) + first(lastName);
+    String first(String? s) => (s == null || s.isEmpty) ? '' : s[0].toUpperCase();
+    final fromName = first(firstName) + first(lastName);
+    return fromName.isNotEmpty ? fromName : first(email);
   }
 }
 
-/// Talks to the backend /users endpoints. Display data only, no login.
+/// Talks to the backend /users endpoints.
 class UserService {
-  static const _base = PaymentService.baseUrl;
+  ApiClient get _api => ApiClient.instance;
 
   Future<UserProfile> me() async {
-    final res = await http.get(Uri.parse('$_base/users/me'));
+    final res = await _api.get('/users/me');
     if (res.statusCode != 200) {
-      throw Exception('Could not load profile (${res.statusCode})');
+      throw ApiException('Could not load profile (${res.statusCode})', res.statusCode);
     }
-    final j = jsonDecode(res.body) as Map<String, dynamic>;
-    return UserProfile(j['first_name'], j['last_name'], j['email'], j['phone']);
+    return UserProfile.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// Sends only the fields you pass. An empty string clears that field on the server.
+  Future<UserProfile> updateProfile({String? firstName, String? lastName, String? phone}) async {
+    final res = await _api.patch('/users/me', body: {
+      'first_name': ?firstName,
+      'last_name': ?lastName,
+      'phone': ?phone,
+    });
+    if (res.statusCode != 200) {
+      throw ApiException(ApiClient.errorMessage(res), res.statusCode);
+    }
+    return UserProfile.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 }

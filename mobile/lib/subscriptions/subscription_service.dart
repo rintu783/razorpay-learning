@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
+import '../auth/api_client.dart';
 import '../payments/payment_service.dart';
 
 class Plan {
@@ -25,10 +24,10 @@ class SubscriptionInfo {
 
 /// Talks to the backend /subscriptions endpoints. No keys here.
 class SubscriptionService {
-  static const _base = PaymentService.baseUrl;
+  ApiClient get _api => ApiClient.instance;
 
   Future<SubscriptionInfo> me() async {
-    final res = await http.get(Uri.parse('$_base/subscriptions/me'));
+    final res = await _api.get('/subscriptions/me');
     if (res.statusCode != 200) {
       throw Exception('Could not load subscription (${res.statusCode})');
     }
@@ -49,11 +48,7 @@ class SubscriptionService {
 
   /// Sends only the plan name. The server decides the price.
   Future<OrderInfo> checkout(String planId) async {
-    final res = await http.post(
-      Uri.parse('$_base/subscriptions/checkout'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'plan_id': planId}),
-    );
+    final res = await _api.post('/subscriptions/checkout', body: {'plan_id': planId});
     if (res.statusCode != 200) {
       final detail = (jsonDecode(res.body) as Map<String, dynamic>)['detail'];
       throw Exception('$detail');
@@ -64,7 +59,7 @@ class SubscriptionService {
 
   /// Starts a full refund. The server's webhook later moves the user to Basic.
   Future<void> refund(String orderId) async {
-    final res = await http.post(Uri.parse('$_base/payments/$orderId/refund'));
+    final res = await _api.post('/payments/$orderId/refund');
     if (res.statusCode != 200) {
       final detail = (jsonDecode(res.body) as Map<String, dynamic>)['detail'];
       throw Exception('$detail');

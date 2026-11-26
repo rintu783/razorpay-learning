@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.db import get_db
 from app.billing import repository as billing_repo
 from app.payments import repository, service
 from app.subscriptions import repository as sub_repo
+from app.users.models import User
 from app.payments.schemas import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -32,14 +34,18 @@ _REFUND_EVENT_STATUS = {
 
 
 @router.post("/create-order", response_model=CreateOrderResponse)
-def create_order(body: CreateOrderRequest, db: Session = Depends(get_db)):
+def create_order(
+    body: CreateOrderRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     try:
         order = service.create_order(body.amount)
     except RuntimeError as e:  # missing keys
         raise HTTPException(status_code=500, detail=str(e))
     except Exception:  # Razorpay/network error; don't leak details to the client
         raise HTTPException(status_code=502, detail="Could not create order with Razorpay")
-    repository.save_order(db, order["id"], order["receipt"], order["amount"], order["currency"])
+    repository.save_order(db, user.user_id, order["id"], order["receipt"], order["amount"], order["currency"])
     return CreateOrderResponse(
         order_id=order["id"],
         amount=order["amount"],
@@ -49,8 +55,14 @@ def create_order(body: CreateOrderRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verify", response_model=VerifyPaymentResponse)
-def verify_payment(body: VerifyPaymentRequest):
+def verify_payment(
+    body: VerifyPaymentRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Checks the signature only. Does NOT change payment status (webhook does)."""
+    if repository.get_owned(db, body.razorpay_order_id, user.user_id) is None:
+        raise HTTPException(status_code=404, detail="Order not found")
     try:
         ok = service.verify_signature(
             body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature
@@ -61,17 +73,25 @@ def verify_payment(body: VerifyPaymentRequest):
 
 
 @router.get("/status/{order_id}", response_model=PaymentStatusResponse)
-def payment_status(order_id: str, db: Session = Depends(get_db)):
-    p = repository.get_by_order(db, order_id)
+def payment_status(
+    order_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    p = repository.get_owned(db, order_id, user.user_id)
     if p is None:
         raise HTTPException(status_code=404, detail="Order not found")
     return PaymentStatusResponse(order_id=p.order_id, status=p.status, payment_id=p.payment_id)
 
 
 @router.post("/{order_id}/refund", response_model=RefundResponse)
-def refund_order(order_id: str, db: Session = Depends(get_db)):
+def refund_order(
+    order_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Full refund. Only starts it; the refund webhook updates the status."""
-    payment = repository.get_by_order(db, order_id)
+    payment = repository.get_owned(db, order_id, user.user_id)
     if payment is None:
         raise HTTPException(status_code=404, detail="Order not found")
     if payment.status != "paid" or not payment.payment_id:
@@ -94,6 +114,7 @@ def refund_order(order_id: str, db: Session = Depends(get_db)):
     )
 
 
+# No login here: Razorpay calls this, not a user. The HMAC signature check below is the authentication.
 @router.post("/webhook")
 async def webhook(
     request: Request,

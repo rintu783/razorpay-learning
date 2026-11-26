@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
 import '../billing/billing_screen.dart';
 import '../subscriptions/subscription_actions.dart';
 import '../users/avatar.dart';
+import '../users/edit_profile_screen.dart';
 import '../users/user_service.dart';
 
 /// Account page: big avatar, name, details card and the plan tile.
 class AccountScreen extends StatefulWidget {
   final UserProfile user;
-  const AccountScreen({super.key, required this.user});
+
+  /// Called after the profile is saved, so the screen below (home) can show the new name.
+  final ValueChanged<UserProfile>? onChanged;
+  const AccountScreen({super.key, required this.user, this.onChanged});
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
 }
 
 class _AccountScreenState extends State<AccountScreen> with SubscriptionActions<AccountScreen> {
+  late UserProfile _user = widget.user;
+
   @override
   void initState() {
     super.initState();
@@ -27,9 +34,20 @@ class _AccountScreenState extends State<AccountScreen> with SubscriptionActions<
     return i.planId == 'pro' ? 'Pro' : 'Basic';
   }
 
+  Future<void> _editProfile() async {
+    final updated = await Navigator.push<UserProfile>(
+      context,
+      MaterialPageRoute(builder: (_) => EditProfileScreen(user: _user)),
+    );
+    if (updated == null || !mounted) return;
+    setState(() => _user = updated);
+    widget.onChanged?.call(updated);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated')));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = widget.user;
+    final user = _user;
     final pro = info?.planId == 'pro';
     final blue = Theme.of(context).colorScheme.primary;
     return Scaffold(
@@ -44,7 +62,7 @@ class _AccountScreenState extends State<AccountScreen> with SubscriptionActions<
                 children: [
                   Avatar(initials: user.initials, radius: 48),
                   const SizedBox(height: 16),
-                  Text(user.fullName,
+                  Text(user.displayName,
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
@@ -61,9 +79,17 @@ class _AccountScreenState extends State<AccountScreen> with SubscriptionActions<
                       children: [
                         _InfoRow(icon: Icons.mail_outline, label: 'Email', value: user.email),
                         const Divider(height: 1),
-                        _InfoRow(icon: Icons.phone_outlined, label: 'Phone number', value: user.phone),
+                        _InfoRow(icon: Icons.phone_outlined, label: 'Phone number', value: user.phone ?? 'Not added'),
                         const Divider(height: 1),
                         _InfoRow(icon: Icons.workspace_premium_outlined, label: 'Subscription', value: _planLabel),
+                        const Divider(height: 1),
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                          leading: const Icon(Icons.edit_outlined),
+                          title: const Text('Edit profile', style: TextStyle(fontWeight: FontWeight.w500)),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: _editProfile,
+                        ),
                         const Divider(height: 1),
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -79,6 +105,23 @@ class _AccountScreenState extends State<AccountScreen> with SubscriptionActions<
                                   ).then((_) => loadInfo()),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+                      title: Text('Log out',
+                          style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w500)),
+                      // The AuthGate closes this page and shows the login screen once the status changes.
+                      onTap: () => AuthService.instance.logout(),
                     ),
                   ),
                   if (loadError != null)

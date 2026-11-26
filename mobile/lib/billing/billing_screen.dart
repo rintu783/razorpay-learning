@@ -21,6 +21,15 @@ class _BillingScreenState extends State<BillingScreen> with SubscriptionActions<
   ];
 
   final _billing = BillingService();
+
+  Future<void> _openInvoice(String orderId) async {
+    try {
+      await openPdfInNewTab(_billing.invoicePdf(orderId));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the invoice. Please try again.')));
+    }
+  }
   List<HistoryItem>? _history;
   String? _historyError;
 
@@ -219,7 +228,7 @@ class _BillingScreenState extends State<BillingScreen> with SubscriptionActions<
       body = HistoryTable(
         items: items,
         formatDate: _date,
-        onPrint: (h) => openInNewTab(_billing.invoicePdfUrl(h.orderId)),
+        onPrint: (h) => _openInvoice(h.orderId),
       );
     }
     return Card(
